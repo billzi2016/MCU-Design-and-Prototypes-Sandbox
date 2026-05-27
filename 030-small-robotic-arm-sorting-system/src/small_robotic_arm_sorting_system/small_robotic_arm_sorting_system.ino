@@ -44,6 +44,7 @@ void setup() {
   servoForearm.attach(PIN_SERVO_FOREARM);
   servoGrip.attach(PIN_SERVO_GRIP);
 
+  // 上电先回到统一待机姿态，避免机械臂在未知角度下直接执行抓取发生干涉。
   moveToHomePose();
 }
 
@@ -57,6 +58,7 @@ void loop() {
 
   pickObject();
   placeObjectByColor(detectedColor);
+  // 每次分拣结束都回到统一原点，便于下一轮识别时目标位置和姿态一致。
   moveToHomePose();
   delay(500);
 }
@@ -87,6 +89,7 @@ ColorType detectColor() {
     color = COLOR_BLUE;
   }
 
+  // 当三个颜色通道都不够明显时，认为目标不存在或颜色不在预设范围内。
   if (minValue > 180) {
     return COLOR_UNKNOWN;
   }
@@ -129,6 +132,7 @@ void placeObjectByColor(ColorType color) {
 }
 
 void moveToDropPose(int baseAngle) {
+  // 放置区只通过底座转角区分，机械臂和前臂维持相对稳定的释放姿态。
   servoBase.write(baseAngle);
   servoArm.write(95);
   servoForearm.write(100);

@@ -17,6 +17,7 @@ const int PIN_RIGHT_IN2 = 11;
 
 const int FORWARD_SPEED = 160;
 const int TURN_SPEED = 150;
+// 小于该距离就认为前方不再安全，需要停下来做避障决策。
 const int SAFE_DISTANCE_CM = 25;
 
 Servo scanServo;
@@ -46,16 +47,19 @@ void loop() {
   }
 
   stopCar();
+  // 停一下再扫描，避免惯性前冲时测得的仍是上一时刻的距离。
   delay(150);
 
   int leftDistance = scanDistanceAt(150);
   int rightDistance = scanDistanceAt(30);
 
+  // 左右都看完后再统一决策，避免只看一侧就贸然转向。
   if (leftDistance > rightDistance && leftDistance > SAFE_DISTANCE_CM) {
     turnLeft();
   } else if (rightDistance >= leftDistance && rightDistance > SAFE_DISTANCE_CM) {
     turnRight();
   } else {
+    // 两侧都不够安全时先小幅后退，为下一次转向腾出空间。
     moveBackward();
     delay(300);
     turnRight();
@@ -86,10 +90,12 @@ int readDistanceCm() {
 }
 
 void moveForward() {
+  // 前进阶段默认双轮等速，直到下一个测距周期再次判断环境。
   setMotor(true, FORWARD_SPEED, true, FORWARD_SPEED);
 }
 
 void moveBackward() {
+  // 后退只在双侧都不安全时短暂触发，用于脱离死角。
   setMotor(false, FORWARD_SPEED, false, FORWARD_SPEED);
 }
 
@@ -105,6 +111,7 @@ void turnRight() {
 }
 
 void stopCar() {
+  // 停车单独封装，便于后续增加蜂鸣器、状态灯或自动/手动模式切换。
   digitalWrite(PIN_LEFT_IN1, LOW);
   digitalWrite(PIN_LEFT_IN2, LOW);
   digitalWrite(PIN_RIGHT_IN1, LOW);

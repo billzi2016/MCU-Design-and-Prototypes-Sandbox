@@ -14,7 +14,9 @@ const int PIN_RIGHT_IN1 = 10;
 const int PIN_RIGHT_IN2 = 11;
 
 const int BASE_SPEED = 150;
+// 偏差放大系数越大，转向越激进；太大容易抖动，太小又会修正不足。
 const int TURN_GAIN = 70;
+// 该阈值需要按具体循迹模块、赛道颜色和安装高度重新标定。
 const int LINE_THRESHOLD = 500;
 
 void setup() {
@@ -34,6 +36,7 @@ void loop() {
   int center = readLineState(PIN_SENSOR_CENTER);
   int right = readLineState(PIN_SENSOR_RIGHT);
 
+  // error 用来表达黑线相对车体中心的偏移方向。
   int error = calculateError(left, center, right);
 
   if (left == 0 && center == 0 && right == 0) {
@@ -46,6 +49,7 @@ void loop() {
   int leftSpeed = BASE_SPEED - error * TURN_GAIN;
   int rightSpeed = BASE_SPEED + error * TURN_GAIN;
 
+  // 这里默认两侧都保持前进，只通过差速实现轻量转向，适合基础巡线平台。
   setMotor(true, constrain(leftSpeed, 0, 255), true, constrain(rightSpeed, 0, 255));
 
   Serial.print("L:");
@@ -64,6 +68,8 @@ int readLineState(int pin) {
 }
 
 int calculateError(int left, int center, int right) {
+  // 以中间压线为理想状态，左偏返回负值，右偏返回正值。
+  // 这样后续差速控制就能直接根据 error 的符号决定减哪边、加哪边。
   if (center && !left && !right) {
     return 0;
   }
@@ -83,6 +89,7 @@ int calculateError(int left, int center, int right) {
 }
 
 void setMotor(bool leftForward, int leftPwm, bool rightForward, int rightPwm) {
+  // 将左右轮控制统一封装，后续如果改成 PID 巡线只需要调整上层速度计算。
   digitalWrite(PIN_LEFT_IN1, leftForward ? HIGH : LOW);
   digitalWrite(PIN_LEFT_IN2, leftForward ? LOW : HIGH);
   digitalWrite(PIN_RIGHT_IN1, rightForward ? HIGH : LOW);

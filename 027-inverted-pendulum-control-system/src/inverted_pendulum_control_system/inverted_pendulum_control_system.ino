@@ -10,11 +10,13 @@ const int PIN_CART_IN1 = 6;
 const int PIN_CART_IN2 = 7;
 
 const unsigned long CONTROL_INTERVAL_MS = 15;
+// 超过该角度认为摆杆已经失去可控性，继续输出只会造成滑台冲撞。
 const double SAFE_ANGLE_DEG = 35.0;
 
 double setpointAngle = 0.0;
 double inputAngle = 0.0;
 double outputPwm = 0.0;
+// 这里保留为基础 PID 参数，重点是演示倒立摆控制框架而不是追求最终整定结果。
 double kp = 9.0;
 double ki = 0.5;
 double kd = 0.3;
@@ -41,6 +43,7 @@ void loop() {
   }
 
   lastControlTime = millis();
+  // 当前版本用电位器模拟角度输入，因此能在没有真实摆杆机构时先验证控制链路。
   inputAngle = readAngleDegrees();
 
   // 当摆角超出安全范围时直接停机，避免演示平台机械冲撞。
@@ -50,6 +53,7 @@ void loop() {
     return;
   }
 
+  // PID 库内部会依据设定值、当前值和参数自动更新 outputPwm。
   pendulumPid.Compute();
   applyCartOutput(static_cast<int>(outputPwm));
 
@@ -62,6 +66,7 @@ void loop() {
 double readAngleDegrees() {
   // 这里用电位器输入模拟摆角，便于在没有真实摆杆机构时验证控制框架。
   int raw = analogRead(PIN_ANGLE_SENSOR);
+  // 映射到约 -45 到 +45 度，便于模拟摆杆围绕直立位置的小范围摆动。
   return map(raw, 0, 1023, -450, 450) / 10.0;
 }
 
@@ -70,12 +75,14 @@ void applyCartOutput(int pwm) {
   bool forward = pwm >= 0;
   int output = constrain(abs(pwm), 0, 255);
 
+  // 倒立摆本质上是“靠底座去追摆杆”，因此方向输出要和角度误差严格对应。
   digitalWrite(PIN_CART_IN1, forward ? HIGH : LOW);
   digitalWrite(PIN_CART_IN2, forward ? LOW : HIGH);
   analogWrite(PIN_CART_PWM, output);
 }
 
 void stopCart() {
+  // 安全停机单独抽成函数，便于后续加入报警、刹车或状态灯等逻辑。
   digitalWrite(PIN_CART_IN1, LOW);
   digitalWrite(PIN_CART_IN2, LOW);
   analogWrite(PIN_CART_PWM, 0);
