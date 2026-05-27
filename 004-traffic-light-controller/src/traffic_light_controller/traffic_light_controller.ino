@@ -1,5 +1,9 @@
 #include <TM1637Display.h>
 
+// 交通灯控制系统：
+// 通过状态机描述车道绿灯、黄灯、人行绿灯和全红过渡四个阶段。
+// 行人按钮不是立即抢占当前状态，而是记录请求，在合适相位切换执行。
+
 const int PIN_CAR_RED = 2;
 const int PIN_CAR_YELLOW = 3;
 const int PIN_CAR_GREEN = 4;
@@ -21,6 +25,7 @@ const unsigned int ALL_RED_SECONDS = 2;
 
 TM1637Display display(PIN_TM1637_CLK, PIN_TM1637_DIO);
 
+// 用枚举明确交通相位，避免用多个布尔变量组合出冲突状态。
 enum TrafficState {
   STATE_CAR_GREEN,
   STATE_CAR_YELLOW,
@@ -54,6 +59,7 @@ void setup() {
 }
 
 void loop() {
+  // 主循环只做输入采集、状态推进和提示输出，结构保持清晰。
   handlePedestrianButton();
   updateTrafficState();
   updateBuzzer();
@@ -92,10 +98,12 @@ void updateTrafficState() {
   unsigned int elapsedSeconds = elapsedStateSeconds();
   unsigned int duration = currentStateDuration();
 
+  // 相位时间未到时直接返回，保持当前灯态不变。
   if (elapsedSeconds < duration) {
     return;
   }
 
+  // 行人请求只在车道黄灯结束后被真正消费，模拟更合理的路口逻辑。
   if (currentState == STATE_CAR_GREEN) {
     enterState(STATE_CAR_YELLOW);
   } else if (currentState == STATE_CAR_YELLOW) {
@@ -113,6 +121,7 @@ void updateTrafficState() {
 }
 
 void enterState(TrafficState nextState) {
+  // 每次切换相位都重置计时和蜂鸣器，避免上一状态的副作用残留。
   currentState = nextState;
   stateStartTime = millis();
   buzzerState = false;
@@ -131,6 +140,7 @@ void enterState(TrafficState nextState) {
 }
 
 void setLights(bool carRed, bool carYellow, bool carGreen, bool pedRed, bool pedGreen) {
+  // 所有灯输出通过统一入口设置，便于排查灯态冲突。
   digitalWrite(PIN_CAR_RED, carRed ? HIGH : LOW);
   digitalWrite(PIN_CAR_YELLOW, carYellow ? HIGH : LOW);
   digitalWrite(PIN_CAR_GREEN, carGreen ? HIGH : LOW);
@@ -154,6 +164,7 @@ void updateBuzzer() {
 }
 
 void refreshDisplay() {
+  // 数码管只显示当前相位剩余秒数，逻辑判断仍由状态机负责。
   unsigned int remaining = remainingStateSeconds();
   display.showNumberDec(remaining, true);
 }
@@ -185,4 +196,3 @@ unsigned int currentStateDuration() {
   }
   return ALL_RED_SECONDS;
 }
-

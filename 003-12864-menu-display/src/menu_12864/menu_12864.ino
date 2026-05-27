@@ -1,5 +1,9 @@
 #include <U8g2lib.h>
 
+// 12864 菜单交互系统：
+// 用最简单的多级状态思想，演示“选中项”和“编辑项”的区别。
+// 这个项目本质上是后续其他项目的人机交互模板。
+
 U8G2_ST7920_128X64_F_SW_SPI u8g2(U8G2_R0, 13, 11, 10, U8X8_PIN_NONE);
 
 const int PIN_UP = 2;
@@ -25,6 +29,8 @@ const char* MENU_NAMES[MENU_COUNT] = {
   "Interval"
 };
 
+// selectedIndex 表示当前光标落在哪个菜单项；
+// editMode 表示当前是在“移动光标”还是在“修改值”。
 int selectedIndex = 0;
 bool editMode = false;
 
@@ -102,6 +108,7 @@ bool buttonPressed(int index) {
 
 void handleUp() {
   if (editMode) {
+    // 编辑模式下，上键不再移动菜单，而是直接修改当前参数。
     changeCurrentValue(1);
   } else {
     selectedIndex--;
@@ -123,10 +130,12 @@ void handleDown() {
 }
 
 void handleOk() {
+  // OK 键只负责进入编辑，不负责提交，退出由 BACK 键完成。
   editMode = true;
 }
 
 void handleBack() {
+  // 当前项目不做多级页面跳转，因此 BACK 的含义就是退出编辑。
   editMode = false;
 }
 
@@ -151,6 +160,7 @@ int currentValue(int index) {
 }
 
 void drawScreen() {
+  // 所有显示内容每帧重新绘制，确保参数变化后界面始终一致。
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_6x12_tf);
 
@@ -181,4 +191,3 @@ void drawScreen() {
 
   u8g2.sendBuffer();
 }
-

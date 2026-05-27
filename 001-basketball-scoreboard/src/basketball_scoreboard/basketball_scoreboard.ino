@@ -1,5 +1,9 @@
 #include <LiquidCrystal_I2C.h>
 
+// 篮球计分器：
+// 负责管理 A/B 两队得分、节次和比赛倒计时，并用 LCD1602 实时显示。
+// 交互全部通过按键完成，因此核心点是按键消抖、非阻塞倒计时和结束蜂鸣提示。
+
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 const int PIN_A_PLUS_1 = 2;
@@ -30,6 +34,7 @@ const unsigned long DEBOUNCE_MS = 40;
 const unsigned long DISPLAY_REFRESH_MS = 200;
 const unsigned int INITIAL_SECONDS = 10 * 60;
 
+// 比赛主状态：比分、节次和剩余秒数。
 int scoreA = 0;
 int scoreB = 0;
 int period = 1;
@@ -62,6 +67,7 @@ void setup() {
 }
 
 void loop() {
+  // 主循环保持很轻，保证倒计时和按键响应都不会被阻塞。
   handleButtons();
   updateTimer();
 
@@ -73,6 +79,7 @@ void loop() {
 }
 
 void handleButtons() {
+  // 这里把“按钮索引”和“业务动作”集中映射，便于后续扩展更多功能键。
   if (buttonPressed(0)) {
     addScoreA(1);
   }
@@ -146,6 +153,7 @@ void nextPeriod() {
 }
 
 void toggleTimer() {
+  // 每次切换计时状态都重置时间基准，避免暂停后恢复时瞬间跳秒。
   timerRunning = !timerRunning;
   lastTimerTick = millis();
   refreshDisplay();
@@ -183,6 +191,7 @@ void updateTimer() {
 }
 
 void playBuzzerOnce() {
+  // 终场只响一次，避免 remainingSeconds 保持为 0 时重复触发。
   if (buzzerPlayed) {
     return;
   }
@@ -197,6 +206,7 @@ void refreshDisplay() {
   char line1[17];
   char line2[17];
 
+  // 显示层统一在这里组装，业务逻辑不用关心 LCD 具体格式。
   unsigned int minutes = remainingSeconds / 60;
   unsigned int seconds = remainingSeconds % 60;
 
@@ -223,4 +233,3 @@ void printPaddedLine(const char* text) {
     length++;
   }
 }
-

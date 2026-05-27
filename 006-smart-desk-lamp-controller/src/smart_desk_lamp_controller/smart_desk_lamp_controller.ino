@@ -2,6 +2,10 @@
 #include <Adafruit_SSD1306.h>
 #include <Wire.h>
 
+// 智能台灯控制系统：
+// 通过光敏电阻感知环境亮度，在自动模式下实时调整 LED PWM；
+// 在手动模式下，用户可直接修改目标亮度，OLED 负责显示当前工作状态。
+
 const int PIN_LIGHT_SENSOR = A0;
 const int PIN_MODE = 2;
 const int PIN_BRIGHTNESS_UP = 3;
@@ -25,6 +29,7 @@ const float FILTER_ALPHA = 0.12f;
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+// autoMode 决定亮度来源是“环境光自动计算”还是“用户手动设定”。
 bool autoMode = true;
 int lightRaw = 0;
 float lightFiltered = 0.0f;
@@ -59,6 +64,7 @@ void setup() {
 }
 
 void loop() {
+  // 输入、采样、输出和显示分开处理，便于后续增加更多模式。
   handleButtons();
   updateLightReading();
   updateBrightness();
@@ -72,6 +78,7 @@ void loop() {
 
 void handleButtons() {
   if (buttonPressed(0)) {
+    // 模式切换不直接改输出值，真正的亮度仍由 updateBrightness 统一计算。
     autoMode = !autoMode;
   }
 
@@ -138,10 +145,12 @@ void updateBrightness() {
     targetBrightness = 255;
   }
 
+  // 无论自动还是手动模式，最终都通过同一个 PWM 输出路径生效。
   analogWrite(PIN_LED_PWM, targetBrightness);
 }
 
 void drawScreen() {
+  // OLED 作为状态面板，重点展示模式、环境输入和控制输出三类信息。
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
@@ -171,4 +180,3 @@ void drawScreen() {
 
   display.display();
 }
-

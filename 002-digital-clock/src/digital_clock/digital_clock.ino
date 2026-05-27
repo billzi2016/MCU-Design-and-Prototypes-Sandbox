@@ -1,6 +1,10 @@
 #include <RTClib.h>
 #include <TM1637Display.h>
 
+// 多功能电子钟：
+// 使用 DS3231 负责实时时间保存，TM1637 数码管负责显示。
+// 模式切换把“看时间”“校时”“设置闹钟”放在同一套按键流程中。
+
 const int PIN_TM1637_CLK = 2;
 const int PIN_TM1637_DIO = 3;
 const int PIN_MODE = 4;
@@ -24,6 +28,8 @@ const unsigned long BLINK_MS = 500;
 RTC_DS3231 rtc;
 TM1637Display display(PIN_TM1637_CLK, PIN_TM1637_DIO);
 
+// 模式状态机：
+// MODE_CLOCK 为正常显示，其余模式用于修改时间或闹钟参数。
 enum Mode {
   MODE_CLOCK,
   MODE_SET_HOUR,
@@ -35,6 +41,7 @@ enum Mode {
 
 Mode mode = MODE_CLOCK;
 
+// settingHour / settingMinute 是编辑缓冲区，只有确认保存后才真正写回 RTC。
 int settingHour = 0;
 int settingMinute = 0;
 int alarmHour = 7;
@@ -83,6 +90,7 @@ void setup() {
 }
 
 void loop() {
+  // 显示、按键和提示音都围绕 mode 状态机运转。
   handleButtons();
   updateBlinkState();
   checkAlarmAndHourlyBeep();
@@ -135,6 +143,7 @@ bool buttonPressed(int index) {
 
 void switchMode() {
   if (mode == MODE_CLOCK) {
+    // 进入设置前先读取一次当前 RTC 时间，避免用户在旧值上继续编辑。
     DateTime now = rtc.now();
     settingHour = now.hour();
     settingMinute = now.minute();
@@ -182,6 +191,7 @@ void saveSettings() {
 }
 
 void updateBlinkState() {
+  // 数码管冒号闪烁用于提供“正在运行”的时间感。
   if (millis() - lastBlinkTime >= BLINK_MS) {
     colonVisible = !colonVisible;
     lastBlinkTime = millis();
@@ -189,6 +199,7 @@ void updateBlinkState() {
 }
 
 void checkAlarmAndHourlyBeep() {
+  // 只在正常显示模式下检查闹钟，避免设置过程中被闹钟或整点提示打断。
   if (mode != MODE_CLOCK) {
     return;
   }
@@ -225,6 +236,7 @@ void refreshDisplay() {
   int hourValue = 0;
   int minuteValue = 0;
 
+  // 不同模式复用同一块数码管显示不同来源的数据。
   if (mode == MODE_CLOCK) {
     DateTime now = rtc.now();
     hourValue = now.hour();
@@ -241,9 +253,9 @@ void refreshDisplay() {
     return;
   }
 
+  // 数码管本身不理解“时间”，所以统一转换为 HHMM 整数后输出。
   int displayValue = hourValue * 100 + minuteValue;
   uint8_t colonFlag = colonVisible ? 0b01000000 : 0;
 
   display.showNumberDecEx(displayValue, colonFlag, true);
 }
-
