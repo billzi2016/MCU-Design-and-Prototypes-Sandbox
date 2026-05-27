@@ -28,6 +28,7 @@ HardwareSerial gpsSerial(1);
 TinyGPSPlus gps;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+// 位置有效性、越界状态和蜂鸣器状态分开保存，便于分别驱动显示和报警。
 bool gpsValid = false;
 bool outOfFence = false;
 bool buzzerState = false;
@@ -60,6 +61,7 @@ void setup() {
 }
 
 void loop() {
+  // 主循环围绕定位解析、围栏判断、蜂鸣器和分页显示四件事展开。
   readGpsStream();
   updateFenceState();
   updateBuzzer();
@@ -72,6 +74,7 @@ void loop() {
 }
 
 void readGpsStream() {
+  // TinyGPSPlus 需要持续喂入串口字节流，位置更新后再刷新有效状态。
   while (gpsSerial.available()) {
     if (gps.encode(gpsSerial.read()) && gps.location.isUpdated()) {
       gpsValid = gps.location.isValid();
@@ -83,6 +86,7 @@ void readGpsStream() {
 }
 
 void updateFenceState() {
+  // 长时间没有拿到有效定位时，直接视为 GPS 丢失告警。
   if (!gps.location.isValid() || millis() - lastGpsDataTime > GPS_TIMEOUT_MS) {
     gpsValid = false;
     outOfFence = true;
@@ -90,6 +94,7 @@ void updateFenceState() {
   }
 
   gpsValid = true;
+  // 使用球面距离估算当前位置与目标点的直线距离。
   currentDistanceMeters = haversineMeters(
       gps.location.lat(), gps.location.lng(),
       TARGET_LATITUDE, TARGET_LONGITUDE);
@@ -97,6 +102,7 @@ void updateFenceState() {
 }
 
 void updateBuzzer() {
+  // 围栏正常时静音；越界或 GPS 丢失时才进入提示节奏。
   if (gpsValid && !outOfFence) {
     buzzerState = false;
     digitalWrite(PIN_BUZZER, LOW);
@@ -111,6 +117,7 @@ void updateBuzzer() {
 }
 
 void updatePageSwitch() {
+  // 两页轮播：位置页看定位，围栏页看距离和告警结果。
   if (millis() - lastPageSwitch >= PAGE_SWITCH_MS) {
     currentPage = (currentPage + 1) % 2;
     lastPageSwitch = millis();
@@ -132,6 +139,7 @@ void drawPage() {
 }
 
 void drawPositionPage() {
+  // 位置页优先展示经纬度、卫星数和是否仍在围栏内。
   display.println("GPS Position");
   if (gpsValid) {
     display.print("Lat:");
@@ -151,6 +159,7 @@ void drawPositionPage() {
 }
 
 void drawFencePage() {
+  // 围栏页更适合观察目标距离和电子围栏半径设置是否合理。
   display.println("Range and Fence");
   display.print("TargetDist:");
   display.println(gpsValid ? currentDistanceMeters : -1.0, 1);
@@ -165,6 +174,7 @@ void drawFencePage() {
 }
 
 double haversineMeters(double lat1, double lon1, double lat2, double lon2) {
+  // Haversine 公式适合基础电子围栏和测距原型，不依赖外部地图服务。
   const double earthRadiusMeters = 6371000.0;
   double dLat = radians(lat2 - lat1);
   double dLon = radians(lon2 - lon1);

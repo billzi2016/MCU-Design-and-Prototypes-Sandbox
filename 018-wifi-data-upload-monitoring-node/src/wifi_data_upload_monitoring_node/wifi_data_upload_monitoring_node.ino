@@ -28,6 +28,7 @@ const unsigned long WIFI_RETRY_MS = 6000;
 DHT dht(PIN_DHT, DHT_TYPE);
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+// 上传状态和 HTTP 状态码单独保存，便于 OLED 直接反馈最近一次结果。
 float temperatureC = 0.0f;
 float humidity = 0.0f;
 bool sensorReady = false;
@@ -60,6 +61,7 @@ void setup() {
 }
 
 void loop() {
+  // WiFi 连接、采样、上传和显示分别维护，方便后续增加 MQTT 等方案。
   ensureWifiConnected();
   updateSensorData();
   uploadDataIfNeeded();
@@ -71,6 +73,7 @@ void loop() {
 }
 
 void ensureWifiConnected() {
+  // 采用定时重连而不是每圈重连，避免 WiFi 状态频繁抖动。
   if (WiFi.status() == WL_CONNECTED) {
     return;
   }
@@ -91,6 +94,7 @@ void updateSensorData() {
   float newHumidity = dht.readHumidity();
   float newTemperature = dht.readTemperature();
 
+  // DHT22 失败时仅标记状态，避免把无效值上传到服务端。
   if (!isnan(newHumidity) && !isnan(newTemperature)) {
     humidity = newHumidity;
     temperatureC = newTemperature;
@@ -101,6 +105,7 @@ void updateSensorData() {
 }
 
 void uploadDataIfNeeded() {
+  // 只有 WiFi 连通且传感器有效时才上传，避免产生无意义请求。
   if (!sensorReady || WiFi.status() != WL_CONNECTED || millis() - lastUploadTime < UPLOAD_INTERVAL_MS) {
     return;
   }
@@ -111,6 +116,7 @@ void uploadDataIfNeeded() {
   http.begin(UPLOAD_URL);
   http.addHeader("Content-Type", "application/json");
 
+  // 采用最直接的 JSON 文本上传，便于和简单 HTTP 服务对接调试。
   String payload = "{";
   payload += "\"temperature\":";
   payload += String(temperatureC, 2);
@@ -124,6 +130,7 @@ void uploadDataIfNeeded() {
 }
 
 void drawScreen() {
+  // OLED 重点展示连接状态、当前测量值和最近一次上传结果。
   display.clearDisplay();
   display.setTextSize(1);
   display.setCursor(0, 0);

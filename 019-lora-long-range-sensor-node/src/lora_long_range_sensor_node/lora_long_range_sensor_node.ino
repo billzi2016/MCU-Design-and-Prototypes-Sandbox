@@ -30,6 +30,7 @@ const unsigned long DISPLAY_REFRESH_MS = 250;
 DHT dht(PIN_DHT, DHT_TYPE);
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+// 发射节点更关心“传感器是否有效”“无线是否就绪”“已经发了多少包”。
 float temperatureC = 0.0f;
 float humidity = 0.0f;
 bool sensorReady = false;
@@ -62,6 +63,7 @@ void setup() {
 }
 
 void loop() {
+  // 传感器采样和 LoRa 发包节奏分离，方便后续做低功耗调度。
   updateSensorData();
   sendPayloadIfNeeded();
 
@@ -80,6 +82,7 @@ void updateSensorData() {
   float newHumidity = dht.readHumidity();
   float newTemperature = dht.readTemperature();
 
+  // 传感器无效时停止发包，避免无线链路上传播垃圾数据。
   if (!isnan(newHumidity) && !isnan(newTemperature)) {
     humidity = newHumidity;
     temperatureC = newTemperature;
@@ -90,12 +93,14 @@ void updateSensorData() {
 }
 
 void sendPayloadIfNeeded() {
+  // LoRa 节点按固定周期广播，适合作为远距离采集端。
   if (!loraReady || !sensorReady || millis() - lastSendTime < SEND_INTERVAL_MS) {
     return;
   }
 
   lastSendTime = millis();
 
+  // 这里用简单 JSON 字符串，便于网关侧直接解析。
   String payload = "{";
   payload += "\"node\":\"";
   payload += NODE_ID;
@@ -114,6 +119,7 @@ void sendPayloadIfNeeded() {
 }
 
 void drawScreen() {
+  // 本地 OLED 主要用于查看无线状态、测量值和累计发包数。
   display.clearDisplay();
   display.setTextSize(1);
   display.setCursor(0, 0);

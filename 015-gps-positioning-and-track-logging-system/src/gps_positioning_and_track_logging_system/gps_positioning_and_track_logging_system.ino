@@ -25,6 +25,7 @@ HardwareSerial gpsSerial(1);
 TinyGPSPlus gps;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+// SD 状态和页码状态分开管理，显示和记录逻辑更直观。
 bool sdReady = false;
 bool logHeaderReady = false;
 int currentPage = 0;
@@ -57,6 +58,7 @@ void setup() {
 }
 
 void loop() {
+  // 同时处理 GPS 串口解析、周期记录和 OLED 刷新。
   readGpsStream();
   updatePageSwitch();
 
@@ -72,6 +74,7 @@ void loop() {
 }
 
 void readGpsStream() {
+  // TinyGPSPlus 需要持续喂入串口数据，才能逐步解析出有效定位信息。
   while (gpsSerial.available()) {
     gps.encode(gpsSerial.read());
   }
@@ -85,6 +88,7 @@ void updatePageSwitch() {
 }
 
 void ensureLogHeader() {
+  // 第一次写入时补 CSV 表头，后续可以直接导入表格软件分析。
   if (!sdReady || logHeaderReady) {
     return;
   }
@@ -101,6 +105,7 @@ void ensureLogHeader() {
 }
 
 void logTrackPoint() {
+  // 只有 SD 正常且定位有效时才记录轨迹，避免写入无意义占位数据。
   if (!sdReady || !gps.location.isValid()) {
     return;
   }
@@ -128,6 +133,7 @@ void logTrackPoint() {
 }
 
 void drawPage() {
+  // 两页轮播：位置页看实时定位，状态页看日志和时间同步。
   display.clearDisplay();
   display.setTextSize(1);
   display.setCursor(0, 0);
@@ -142,6 +148,7 @@ void drawPage() {
 }
 
 void drawLocationPage() {
+  // 位置页突出经纬度、速度和卫星数这几个核心指标。
   display.println("GPS Position");
   if (gps.location.isValid()) {
     display.print("Lat:");
@@ -162,6 +169,7 @@ void drawLocationPage() {
 }
 
 void drawStatusPage() {
+  // 状态页更适合确认 SD 是否正常、时间是否有效、定位是否已锁定。
   display.println("Track Logger");
   display.print("Date: ");
   display.println(dateString());
@@ -174,6 +182,7 @@ void drawStatusPage() {
 }
 
 String dateString() {
+  // GPS 时间无效时返回占位值，避免显示垃圾时间。
   if (!gps.date.isValid()) {
     return "0000-00-00";
   }

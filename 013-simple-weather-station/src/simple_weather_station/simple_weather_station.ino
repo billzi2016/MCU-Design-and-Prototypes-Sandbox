@@ -29,6 +29,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 volatile unsigned long windPulseCount = 0;
 
+// 不同传感器的结果分开保存，便于页面按需组合展示。
 float temperatureC = 0.0f;
 float humidity = 0.0f;
 float pressureHpa = 0.0f;
@@ -77,6 +78,7 @@ void setup() {
 }
 
 void loop() {
+  // 气象站主循环保持简单：采样、翻页、显示。
   updateSensorData();
   updateDisplayPage();
   drawPage();
@@ -91,6 +93,7 @@ void updateSensorData() {
 
   float newHumidity = dht.readHumidity();
   float newTemperature = dht.readTemperature();
+  // DHT22 失败时只标记状态，不直接清空旧值，便于观察最近一次有效采样。
   if (!isnan(newHumidity) && !isnan(newTemperature)) {
     humidity = newHumidity;
     temperatureC = newTemperature;
@@ -100,6 +103,7 @@ void updateSensorData() {
   }
 
   if (!bmpReady) {
+    // BMP280 初始化失败后继续重试，避免必须重新上电。
     bmpReady = bmp.begin(0x76) || bmp.begin(0x77);
   }
   if (bmpReady) {
@@ -107,6 +111,7 @@ void updateSensorData() {
   }
 
   int rainRaw = analogRead(PIN_RAIN_ANALOG);
+  // 雨滴模拟量做平滑，避免水滴抖动让页面读数跳得太快。
   rainFiltered = FILTER_ALPHA * static_cast<float>(rainRaw) +
                  (1.0f - FILTER_ALPHA) * rainFiltered;
   raining = digitalRead(PIN_RAIN_DIGITAL) == LOW;
@@ -115,6 +120,7 @@ void updateSensorData() {
 }
 
 void updateWindSpeed() {
+  // 风速使用固定时间窗内的脉冲增量计算，适合基础原型验证。
   unsigned long now = millis();
   unsigned long elapsedMs = now - lastWindCalcTime;
   if (elapsedMs == 0) {
@@ -134,6 +140,7 @@ void updateWindSpeed() {
 }
 
 void updateDisplayPage() {
+  // 通过自动轮播把温湿度、降雨和风速拆到不同页面显示。
   if (millis() - lastPageSwitch >= DISPLAY_PAGE_MS) {
     currentPage = (currentPage + 1) % 3;
     lastPageSwitch = millis();
@@ -157,6 +164,7 @@ void drawPage() {
 }
 
 void drawSummaryPage() {
+  // 总览页优先展示最核心的气象信息。
   display.println("Weather Summary");
   if (dhtReady) {
     display.print("T:");
@@ -184,6 +192,7 @@ void drawSummaryPage() {
 }
 
 void drawRainPage() {
+  // 雨滴页更适合观察传感器阈值和雨量强弱趋势。
   display.println("Rain Condition");
   display.print("Detected: ");
   display.println(raining ? "YES" : "NO");
@@ -200,6 +209,7 @@ void drawRainPage() {
 }
 
 void drawWindPage() {
+  // 风速页同时显示累计脉冲，方便校准风速换算因子。
   display.println("Wind Station");
   display.print("Speed: ");
   display.print(windSpeedKmh, 1);

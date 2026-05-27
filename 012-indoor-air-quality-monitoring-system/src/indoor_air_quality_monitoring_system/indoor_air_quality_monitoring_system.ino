@@ -29,6 +29,7 @@ const float HUMIDITY_COMFORT_HIGH = 75.0f;
 DHT dht(PIN_DHT, DHT_TYPE);
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+// 状态按正常、预警、危险、故障划分，便于同时驱动显示和蜂鸣器。
 enum AirState {
   AIR_NORMAL,
   AIR_WARNING,
@@ -73,6 +74,7 @@ void setup() {
 }
 
 void loop() {
+  // 采样、状态判断、蜂鸣器和页面切换各自独立，逻辑更清晰。
   updateSensorData();
   updateAirState();
   updateBuzzer();
@@ -90,6 +92,7 @@ void updateSensorData() {
   float newHumidity = dht.readHumidity();
   float newTemperature = dht.readTemperature();
 
+  // DHT22 失败时保留上次有效值，但把状态标记为故障。
   if (!isnan(newHumidity) && !isnan(newTemperature)) {
     humidity = newHumidity;
     temperatureC = newTemperature;
@@ -99,11 +102,13 @@ void updateSensorData() {
   }
 
   int mq135Raw = analogRead(PIN_MQ135);
+  // 模拟量做平滑处理，避免 OLED 和状态判定在边界附近抖动过快。
   mq135Filtered = FILTER_ALPHA * static_cast<float>(mq135Raw) +
                   (1.0f - FILTER_ALPHA) * mq135Filtered;
 }
 
 void updateAirState() {
+  // 先判断传感器故障，再根据空气质量和舒适度给出风险等级。
   if (!dhtReady) {
     airState = AIR_SENSOR_FAULT;
     return;
@@ -121,6 +126,7 @@ void updateAirState() {
 }
 
 void updateBuzzer() {
+  // 蜂鸣器只在危险或故障状态下工作，普通预警仅屏显即可。
   if (airState != AIR_DANGER && airState != AIR_SENSOR_FAULT) {
     buzzerState = false;
     digitalWrite(PIN_BUZZER, LOW);
@@ -135,6 +141,7 @@ void updateBuzzer() {
 }
 
 void updateDisplayPage() {
+  // 自动轮播 3 页，避免只靠一屏塞下全部信息。
   if (millis() - lastPageSwitch >= DISPLAY_PAGE_MS) {
     currentPage = (currentPage + 1) % 3;
     lastPageSwitch = millis();
@@ -158,6 +165,7 @@ void drawPage() {
 }
 
 void drawSummaryPage() {
+  // 总览页优先展示最核心的温湿度、空气质量值和总体状态。
   display.println("Indoor Air Quality");
   if (dhtReady) {
     display.print("T:");
@@ -177,6 +185,7 @@ void drawSummaryPage() {
 }
 
 void drawAirSensorPage() {
+  // 阈值页主要用于现场调试 MQ-135 风险分级范围。
   display.println("Air Sensor Page");
   display.print("Warn : ");
   display.println(AQI_WARNING_THRESHOLD);
@@ -189,6 +198,7 @@ void drawAirSensorPage() {
 }
 
 void drawComfortPage() {
+  // 舒适度页把温湿度结果压缩成标签，便于快速判断环境是否闷热潮湿。
   display.println("Comfort Check");
   display.print("Temp : ");
   display.println(temperatureC >= TEMP_COMFORT_HIGH ? "HOT" : "OK");
@@ -201,6 +211,7 @@ void drawComfortPage() {
 }
 
 const char* stateLabel() {
+  // 文案统一从这里生成，避免多个页面各写一套字符串。
   if (airState == AIR_NORMAL) {
     return "NORMAL";
   }

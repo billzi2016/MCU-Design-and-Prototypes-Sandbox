@@ -29,6 +29,8 @@ const float LEVEL_FILTER_ALPHA = 0.18f;
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
+// 用明确状态区分“空闲补水”“正在补水”和“传感器故障”，
+// 避免直接用多个布尔变量组合出冲突场景。
 enum RefillState {
   STATE_IDLE,
   STATE_REFILLING,
@@ -37,6 +39,7 @@ enum RefillState {
 
 RefillState refillState = STATE_SENSOR_FAULT;
 
+// 水位百分比由超声波距离换算得到，探头值主要作为高位辅助判断。
 float levelPercent = 0.0f;
 float filteredLevelPercent = 0.0f;
 float distanceCm = 0.0f;
@@ -74,6 +77,7 @@ void setup() {
 }
 
 void loop() {
+  // 主循环拆成采样、控制、报警和显示四部分，便于后续继续扩展。
   updateSensorData();
   updateRefillControl();
   updateBuzzer();
@@ -95,6 +99,7 @@ void updateSensorData() {
   probeHigh = probeRaw >= PROBE_HIGH_THRESHOLD;
 
   float measuredDistance = readWaterDistanceCm();
+  // 超声波偶发超时比较常见，连续失败后才真正进入故障状态。
   if (measuredDistance < 0.0f) {
     invalidMeasureCount++;
     if (invalidMeasureCount >= 2) {
@@ -115,6 +120,7 @@ void updateSensorData() {
   }
 
   levelPercent = waterHeight / TANK_HEIGHT_CM * 100.0f;
+  // 先平滑再参与控制，避免液面轻微波动导致继电器频繁抖动。
   filteredLevelPercent = LEVEL_FILTER_ALPHA * levelPercent +
                          (1.0f - LEVEL_FILTER_ALPHA) * filteredLevelPercent;
   criticalLow = filteredLevelPercent <= CRITICAL_LOW_PERCENT;
@@ -153,7 +159,7 @@ void updateRefillControl() {
   if (refillState == STATE_REFILLING) {
     unsigned long runtime = millis() - refillStartTime;
 
-    // 任一停止条件满足都立即结束补水，避免水泵空转或过充。
+    // 任一停止条件满足都立即结束补水，避免水泵空转、过充或探头长时间浸泡。
     if (filteredLevelPercent >= REFILL_STOP_PERCENT ||
         probeHigh ||
         runtime >= REFILL_MAX_RUNTIME_MS) {
@@ -172,12 +178,14 @@ bool canStartPump() {
 }
 
 void startPump() {
+  // 所有启动动作统一走这里，保证状态变量和继电器输出始终一致。
   refillState = STATE_REFILLING;
   refillStartTime = millis();
   digitalWrite(PIN_RELAY, RELAY_ACTIVE_LEVEL);
 }
 
 void stopPump() {
+  // 停泵时顺手记录时间，给 canStartPump 提供冷却保护依据。
   if (refillState == STATE_REFILLING) {
     lastPumpStopTime = millis();
   }
@@ -190,6 +198,7 @@ void stopPump() {
 }
 
 void updateBuzzer() {
+  // 蜂鸣器只在严重低水位或传感器故障时工作，避免正常补水阶段一直叫。
   bool shouldBuzz = refillState == STATE_SENSOR_FAULT || criticalLow;
   if (!shouldBuzz) {
     buzzerState = false;
@@ -215,6 +224,7 @@ void refreshDisplay() {
   char line1[17];
   char line2[17];
 
+  // 两页轮播：一页看结果，一页看采样细节，16x2 LCD 也能表达完整状态。
   if (refillState == STATE_SENSOR_FAULT) {
     lcd.setCursor(0, 0);
     printPaddedLine("Sensor fault");
@@ -238,6 +248,7 @@ void refreshDisplay() {
 }
 
 const char* stateLabel() {
+  // 状态文案统一从这里输出，避免显示层散落硬编码字符串。
   if (refillState == STATE_REFILLING) {
     return "REFILL";
   }

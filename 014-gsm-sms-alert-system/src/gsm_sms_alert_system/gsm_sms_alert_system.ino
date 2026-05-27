@@ -17,6 +17,7 @@ const char AUTHORIZED_PHONE[] = "+8613800000000";
 
 SoftwareSerial sim800(PIN_SIM800_RX, PIN_SIM800_TX);
 
+// 布防、警号开关和报警状态拆开保存，便于短信指令独立控制。
 bool armed = true;
 bool sirenEnabled = true;
 bool alertActive = false;
@@ -45,6 +46,7 @@ void setup() {
 }
 
 void loop() {
+  // 本地异常检测、蜂鸣器控制和串口短信处理并行进行。
   updateSensorState();
   updateAlarmLogic();
   updateBuzzer();
@@ -58,6 +60,7 @@ void updateSensorState() {
     lastDebounceTime = millis();
   }
 
+  // 这里对门磁或开关量输入做基础消抖，避免抖动引发误短信。
   if (millis() - lastDebounceTime > SENSOR_DEBOUNCE_MS) {
     lastSensorStableState = reading;
   }
@@ -80,6 +83,7 @@ void updateAlarmLogic() {
       lastSmsAttempt = millis();
     }
   } else {
+    // 从异常恢复到正常后，补发一次恢复短信，便于远程确认现场状态。
     if (alertActive &&
         !recoverSmsSent &&
         (lastSmsAttempt == 0 || millis() - lastSmsAttempt >= SMS_RETRY_GAP_MS)) {
@@ -94,6 +98,7 @@ void updateAlarmLogic() {
 }
 
 void updateBuzzer() {
+  // 本地蜂鸣器是短信报警的补充，可通过短信远程单独开关。
   if (!alertActive || !sirenEnabled) {
     buzzerState = false;
     digitalWrite(PIN_BUZZER, LOW);
@@ -108,6 +113,7 @@ void updateBuzzer() {
 }
 
 void readSim800Serial() {
+  // 按行读取串口文本，兼容模块直接推送短信内容的工作方式。
   while (sim800.available()) {
     char ch = static_cast<char>(sim800.read());
     if (ch == '\r') {
@@ -152,6 +158,7 @@ void processIncomingLine(String line) {
 }
 
 void sendStatusSms() {
+  // 状态短信统一从这里构造，减少各个指令分散拼装字符串。
   String message = "STATUS:";
   message += armed ? "ARMED," : "DISARMED,";
   message += alertActive ? "ALERT," : "NORMAL,";
@@ -165,6 +172,7 @@ void sendCommand(const char* command) {
 }
 
 void sendSms(const char* phone, const char* message) {
+  // 发送流程保持最基础的 AT 顺序，便于和常见 SIM800L 模块兼容。
   sim800.print("AT+CMGS=\"");
   sim800.print(phone);
   sim800.println("\"");

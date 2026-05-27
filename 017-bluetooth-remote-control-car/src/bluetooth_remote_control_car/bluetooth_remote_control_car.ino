@@ -16,6 +16,7 @@ const int PIN_STATUS_LED = 13;
 
 SoftwareSerial bluetooth(PIN_BT_RX, PIN_BT_TX);
 
+// 将运动状态显式枚举出来，便于串口命令和电机输出统一映射。
 enum CarState {
   CAR_STOP,
   CAR_FORWARD,
@@ -45,6 +46,7 @@ void setup() {
 }
 
 void loop() {
+  // 蓝牙读取、失联保护和电机输出分开处理，逻辑更稳定。
   readBluetoothCommand();
   updateFailsafe();
   applyMotorState();
@@ -59,6 +61,7 @@ void readBluetoothCommand() {
 }
 
 void handleCommand(char command) {
+  // 方向命令和速度命令都走同一入口，便于后续扩展手机控制协议。
   if (command >= '0' && command <= '9') {
     speedPwm = map(command - '0', 0, 9, 0, 255);
     return;
@@ -85,6 +88,7 @@ void updateFailsafe() {
 }
 
 void applyMotorState() {
+  // 状态灯用于直观区分“静止”和“正在运动”。
   digitalWrite(PIN_STATUS_LED, carState == CAR_STOP ? LOW : HIGH);
 
   if (carState == CAR_FORWARD) {
@@ -117,6 +121,7 @@ void setRightMotor(bool forward, int pwm) {
 }
 
 void stopCar() {
+  // 停车时同时拉低方向和 PWM，避免驱动板残留输出。
   digitalWrite(PIN_IN1, LOW);
   digitalWrite(PIN_IN2, LOW);
   digitalWrite(PIN_IN3, LOW);

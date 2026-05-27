@@ -21,6 +21,7 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 MFRC522 rfid(PIN_SS, PIN_RST);
 Servo doorServo;
 
+// 每张授权卡记录 UID、显示名和当前考勤计数。
 struct UserCard {
   byte uid[4];
   const char* name;
@@ -57,12 +58,14 @@ void setup() {
 }
 
 void loop() {
+  // 先处理定时自动上锁，再读卡，最后刷新 LCD。
   updateTimedStates();
   processRfidCard();
   refreshDisplay();
 }
 
 void updateTimedStates() {
+  // 开门只维持固定时长，超时后自动恢复门锁状态。
   if (unlocked && millis() - unlockStartTime >= UNLOCK_DURATION_MS) {
     lockDoor();
     unlocked = false;
@@ -75,12 +78,14 @@ void updateTimedStates() {
 }
 
 void processRfidCard() {
+  // 只在检测到新卡且 UID 成功读出后继续做权限判断。
   if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) {
     return;
   }
 
   int userIndex = matchAuthorizedCard(rfid.uid.uidByte, rfid.uid.size);
   if (userIndex >= 0) {
+    // 授权成功后既开门也累加考勤次数，便于兼顾门禁和签到两种用途。
     authorizedCards[userIndex].attendanceCount++;
     unlockDoor();
     unlocked = true;
@@ -91,6 +96,7 @@ void processRfidCard() {
     snprintf(messageLine2, sizeof(messageLine2), "Count:%d", authorizedCards[userIndex].attendanceCount);
     showTemporaryMessage(messageLine1, messageLine2);
   } else {
+    // 未授权卡不做开门，只给出拒绝提示和 UID 反馈。
     unlocked = false;
     errorBeep();
     showTemporaryMessage("Access denied", uidString(rfid.uid.uidByte, rfid.uid.size).c_str());
@@ -101,6 +107,7 @@ void processRfidCard() {
 }
 
 int matchAuthorizedCard(const byte* uid, byte uidSize) {
+  // 当前项目按 4 字节 UID 做最基础授权匹配。
   if (uidSize < 4) {
     return -1;
   }
@@ -122,6 +129,7 @@ int matchAuthorizedCard(const byte* uid, byte uidSize) {
 }
 
 void refreshDisplay() {
+  // 临时消息优先显示，消息结束后再回到待刷卡主页面。
   if (showingMessage) {
     lcd.setCursor(0, 0);
     printPaddedLine(messageLine1);
@@ -144,6 +152,7 @@ void showTemporaryMessage(const char* line1, const char* line2) {
 }
 
 String uidString(const byte* uid, byte uidSize) {
+  // 拒绝访问时把 UID 转成字符串，方便在 LCD 上定位是哪张未知卡。
   String text = "UID:";
   for (byte i = 0; i < uidSize; i++) {
     if (uid[i] < 0x10) {
